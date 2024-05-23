@@ -189,8 +189,7 @@ class CommentCreateView(LoginRequiredMixin, CreateView):
             message=message,
             recipient_list=[recipient_email],
             fail_silently=True,
-            from_email = None
-        )
+            from_email=None)
 
 
 class CommentUpdateView(CommentMixinView, UpdateView):
