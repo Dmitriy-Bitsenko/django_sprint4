@@ -48,18 +48,21 @@ class Post(BaseModel, BaseTitle):
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        verbose_name='Автор публикации')
+        verbose_name='Автор публикации',
+        related_name='author')
     location = models.ForeignKey(
         Location,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        verbose_name='Местоположение')
+        verbose_name='Местоположение',
+        related_name='location')
     category = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
         null=True,
-        verbose_name='Категория'
+        verbose_name='Категория',
+        related_name='category'
     )
     image = models.ImageField(
         upload_to='images',
@@ -100,7 +103,7 @@ class Comment(models.Model):
         verbose_name = 'комментарий'
         verbose_name_plural = 'Комментарии'
         default_related_name = 'comments'
-        ordering = ('created_at',)
+        ordering = ('created_at', 'author',)
 
     def __str__(self):
         return f'Комментарий пользователя {self.author}'

@@ -1,5 +1,6 @@
 from django.core.mail import send_mail
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Count
 from django.urls import reverse
 from django.shortcuts import redirect, get_object_or_404
 from django.views.generic import (
@@ -16,7 +17,7 @@ from core.utils import (
     get_post_all_query,
     get_post_data
 )
-from .forms import CommentEditForm, UserEditForm, PostEditForm
+from blog.forms import CommentEditForm, UserEditForm, PostEditForm
 from blog.models import Category, Post, Comment, User
 from blogicum.settings import POST_COUNT
 
@@ -41,7 +42,7 @@ class CategoryPostListView(MainPostListView):
     category = None
 
     def get_queryset(self):
-        slug = self.kwargs['category_slug']
+        slug = self.kwargs.get('category_slug')
         self.category = get_object_or_404(
             Category, slug=slug, is_published=True
         )
@@ -58,34 +59,37 @@ class UserPostsListView(MainPostListView):
     author = None
 
     def get_queryset(self):
-        username = self.kwargs['username']
-        self.author = get_object_or_404(User, username=username)
-        if self.author == self.request.user:
-            return get_post_all_query().filter(author=self.author)
-        return super().get_queryset().filter(author=self.author)
+        return Post.objects.filter(
+            author__username=self.kwargs['username']
+        ).select_related(
+            'location', 'category', 'author'
+        ).annotate(comment_count=Count('comments')).order_by('-pub_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['profile'] = self.author
+        context['profile'] = get_object_or_404(
+            User,
+            username=self.kwargs['username']
+        )
         return context
 
 
 class PostDetailView(DetailView):
     model = Post
-    template_name = "blog/detail.html"
+    template_name = 'blog/detail.html'
     post_data = None
 
     def get_queryset(self):
-        self.post_data = get_object_or_404(Post, pk=self.kwargs["pk"])
+        self.post_data = get_object_or_404(Post, pk=self.kwargs['pk'])
         if self.post_data.author == self.request.user:
-            return get_post_all_query().filter(pk=self.kwargs["pk"])
-        return get_post_published_query().filter(pk=self.kwargs["pk"])
+            return get_post_all_query().filter(pk=self.kwargs['pk'])
+        return get_post_published_query().filter(pk=self.kwargs['pk'])
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["form"] = CommentEditForm()
-        context["comments"] = self.object.comments.all().select_related(
-            "author")
+        context['form'] = CommentEditForm()
+        context['comments'] = self.object.comments.all().select_related(
+            'author')
         return context
 
 
@@ -123,7 +127,7 @@ class PostUpdateView(LoginRequiredMixin, UpdateView):
 
     def dispatch(self, request, *args, **kwargs):
         if self.get_object().author != request.user:
-            return redirect('blog:post_detail', pk=self.kwargs["pk"])
+            return redirect('blog:post_detail', pk=self.kwargs['pk'])
         return super().dispatch(request, *args, **kwargs)
 
     def get_success_url(self):
@@ -153,7 +157,7 @@ class PostDeleteView(LoginRequiredMixin, DeleteView):
 class CommentCreateView(LoginRequiredMixin, CreateView):
     model = Comment
     form_class = CommentEditForm
-    template_name = "blog/comment.html"
+    template_name = 'blog/comment.html'
     post_data = None
 
     def dispatch(self, request, *args, **kwargs):
@@ -168,24 +172,24 @@ class CommentCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        pk = self.kwargs["pk"]
-        return reverse("blog:post_detail", kwargs={"pk": pk})
+        pk = self.kwargs['pk']
+        return reverse('blog:post_detail', kwargs={'pk': pk})
 
     def send_author_email(self):
         post_url = self.request.build_absolute_uri(self.get_success_url())
         recipient_email = self.post_data.author.email
-        subject = "New comment"
+        subject = 'New comment'
         message = (
-            f"Пользователь {self.request.user} добавил "
-            f"комментарий к посту {self.post_data.title}.\n"
-            f"Читать комментарий {post_url}"
+            f'Пользователь {self.request.user} добавил '
+            f'комментарий к посту {self.post_data.title}.\n'
+            f'Читать комментарий {post_url}'
         )
         send_mail(
             subject=subject,
             message=message,
-            from_email="from@example.com",
             recipient_list=[recipient_email],
             fail_silently=True,
+            from_email = None
         )
 
 
