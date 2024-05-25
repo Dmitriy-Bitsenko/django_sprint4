@@ -35,15 +35,15 @@ class PostAdmin(admin.ModelAdmin):
 
 @admin.register(Location)
 class FindLocation(admin.ModelAdmin):
-    list_display = ['name']
+    list_display = ('name',)
     search_fields = ['name__endswith']
 
 
-@admin.register(Comment)
 class FindComment(admin.ModelAdmin):
-    list_display = ['post', 'author', 'text', 'created_at']
+    list_display = ('post', 'author', 'text', 'created_at',)
     search_fields = ['text']
 
 
 admin.site.register(Post, PostAdmin)
 admin.site.register(Category, CategoryAdmin)
+admin.site.register(Comment, FindComment)

@@ -3,6 +3,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count
 from django.urls import reverse
 from django.shortcuts import redirect, get_object_or_404
+from django.utils import timezone
 from django.views.generic import (
     ListView,
     DetailView,
@@ -42,15 +43,21 @@ class CategoryPostListView(MainPostListView):
     category = None
 
     def get_queryset(self):
-        slug = self.kwargs.get('category_slug')
-        self.category = get_object_or_404(
-            Category, slug=slug, is_published=True
-        )
-        return super().get_queryset().filter(category=self.category)
+        return Post.objects.select_related(
+            'category',
+            'location',
+            'author').filter(
+            is_published=True,
+            pub_date__lte=timezone.now(),
+            category__slug=self.kwargs.get('category_slug')).annotate(
+            comment_count=Count('comments')).order_by('-pub_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['category'] = self.category
+        context['category'] = get_object_or_404(Category.objects.filter(
+            is_published=True),
+            slug=self.kwargs.get('category_slug')
+        )
         return context
 
 
@@ -60,7 +67,7 @@ class UserPostsListView(MainPostListView):
 
     def get_queryset(self):
         return Post.objects.filter(
-            author__username=self.kwargs['username']
+            author__username=self.kwargs.get('username')
         ).select_related(
             'location', 'category', 'author'
         ).annotate(comment_count=Count('comments')).order_by('-pub_date')
@@ -69,7 +76,7 @@ class UserPostsListView(MainPostListView):
         context = super().get_context_data(**kwargs)
         context['profile'] = get_object_or_404(
             User,
-            username=self.kwargs['username']
+            username=self.kwargs.get('username')
         )
         return context
 
